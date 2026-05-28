@@ -17,13 +17,18 @@ def render():
     puesto = usuario["puesto"]
     cedula_usuario = usuario["cedula"]
 
-    if perfil not in (1, 3, 4, 5):
+    # ✅ Comparar como strings
+    if perfil not in ('1', '3', '4', '5'):
         st.error("No tiene permiso para acceder a Producción")
         st.stop()
 
     st.title("📊 Reporte de Producción")
 
     conn = get_connection()
+    
+    # ✅ LIMPIAR CUALQUIER TRANSACCIÓN PENDIENTE
+    conn.rollback()
+    
     cur = conn.cursor()
 
     # =========================
@@ -44,7 +49,7 @@ def render():
     cur.execute("""
         SELECT supervisor
         FROM naturgy.usuarios
-        WHERE cedula = %s
+        WHERE usuario = %s
     """, (cedula_usuario,))
     row_sup = cur.fetchone()
     supervisor_nombre = row_sup[0] if row_sup else None
@@ -101,7 +106,6 @@ def render():
                 rango_501_1000 = st.number_input("(501 a 1000 mts)", min_value=0, step=1, value=0)
                 rango_mas_10000 = st.number_input("(> 10000 mts)", min_value=0, step=1, value=0)
             
-            # Inicializar campos de Recaptura en 0
             ap_km = 0.0
             mp_0_100 = 0.0
             mp_101_500 = 0.0
@@ -131,7 +135,6 @@ def render():
                 mp_501_1000 = st.number_input("MP (501 a 1000 mts)", min_value=0.0, step=0.01, format="%.2f")
                 mp_mas_10000 = st.number_input("MP (> 10000 mts)", min_value=0.0, step=0.01, format="%.2f")
             
-            # Inicializar campos de CC en 0
             rango_0_100 = 0
             rango_101_500 = 0
             rango_501_1000 = 0
@@ -140,7 +143,6 @@ def render():
             rango_mas_10000 = 0
 
         else:
-            # Otros procesos: inicializar todo en 0
             st.info("ℹ️ Este proceso no requiere campos adicionales de medición")
             
             rango_0_100 = 0
@@ -172,9 +174,6 @@ def render():
         # =========================
         observaciones = st.text_area("Observaciones", max_chars=240)
 
-        # =========================
-        # ESTADO (por debajo)
-        # =========================
         estado = "N/A"
 
         submit = st.form_submit_button("Guardar reporte")
