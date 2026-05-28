@@ -31,7 +31,7 @@ def render():
     # =========================
     cur.execute("""
         SELECT id, nombre
-        FROM procesos
+        FROM naturgy.procesos
         WHERE id <> 0
         ORDER BY id
     """)
@@ -43,8 +43,8 @@ def render():
     # =========================
     cur.execute("""
         SELECT supervisor
-        FROM personal
-        WHERE cedula = %s
+        FROM naturgy.usuarios
+        WHERE usuario = %s
     """, (cedula_usuario,))
     row_sup = cur.fetchone()
     supervisor_nombre = row_sup[0] if row_sup else None
