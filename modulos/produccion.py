@@ -50,20 +50,6 @@ def render():
     supervisor_nombre = row_sup[0] if row_sup else None
 
     # =========================
-    # Cargar REGIONES reales
-    # =========================
-    cur.execute("""
-        SELECT DISTINCT region
-        FROM asignaciones
-        ORDER BY region
-    """)
-    lista_regiones = [row[0] for row in cur.fetchall()]
-
-    if not lista_regiones:
-        st.error("No existen regiones registradas en la tabla asignaciones")
-        st.stop()
-
-    # =========================
     # PROCESO
     # =========================
     proceso_nombre = st.selectbox(
@@ -72,101 +58,9 @@ def render():
     )
     proceso_id = procesos_dict[proceso_nombre]
 
-    es_control_calidad = (proceso_id == 2)
-    es_omisiones = (proceso_id == 3)
-
-    # =========================
-    # REGION / ASIGNACION / BLOQUE
-    # =========================
-    col1, col2, col3 = st.columns(3)
-
-    # Región
-    with col1:
-        region = st.selectbox(
-            "Región",
-            lista_regiones
-        )
-
-    
-    if es_omisiones:
-        asignacion = None
-        bloque = None
-        zona = None
-
-        with col2:
-            st.text_input("Asignación", value="No aplica", disabled=True)
-    
-        with col3:
-            st.text_input("Bloque", value="No aplica", disabled=True)
-    
-        complejidad = None
-
-    else :
-        # Asignaciones según región
-        cur.execute("""
-            SELECT DISTINCT asignacion
-            FROM asignaciones
-            WHERE region = %s
-            ORDER BY asignacion
-        """, (region,))
-        lista_asignaciones = [row[0] for row in cur.fetchall()]
-    
-        if not lista_asignaciones:
-            st.warning("No hay asignaciones para esta región")
-            st.stop()
-    
-        # Asignación
-        with col2:
-            asignacion = st.selectbox(
-                "Asignación",
-                lista_asignaciones
-            )
-    
-        # Bloques según región + asignación
-        cur.execute("""
-            SELECT bloque
-            FROM asignaciones
-            WHERE region = %s
-              AND asignacion = %s
-            ORDER BY bloque
-        """, (region, asignacion))
-        lista_bloques = [row[0] for row in cur.fetchall()]
-    
-        if not lista_bloques:
-            st.warning("No hay bloques para esta asignación")
-            st.stop()
-    
-        # Bloque
-        with col3:
-            bloque = st.selectbox(
-                "Bloque",
-                lista_bloques
-            )
-    
-        # =========================
-        # Obtener complejidad real
-        # =========================
-        cur.execute("""
-            SELECT complejidad
-            FROM asignaciones
-            WHERE region = %s
-              AND asignacion = %s
-              AND bloque = %s
-            LIMIT 1
-        """, (region, asignacion, bloque))
-    
-        row_comp = cur.fetchone()
-        complejidad = row_comp[0] if row_comp else None
-    
-        zona = f"{asignacion}{str(bloque).zfill(3)}"
-
-    st.caption(f"📍 Región: **{region}**")
-    st.caption(f"📍 Zona: **{zona}**")
-
-    if complejidad:
-        st.caption(f"🧠 Complejidad detectada: **{complejidad}**")
-    else:
-        st.warning("⚠️ Esta zona no tiene complejidad definida")
+    # Determinar qué campos mostrar según el proceso
+    es_control_calidad = (proceso_id == 1)
+    es_recaptura_red = (proceso_id == 2)
 
     # =========================
     # FORMULARIO
@@ -185,29 +79,103 @@ def render():
             step=0.5
         )
 
-        if es_control_calidad:
-            aprobados = st.number_input("Aprobados", min_value=0)
-            rechazados = st.number_input("Rechazados", min_value=0)
-            produccion = 0
-            estados_disponibles = ["pendiente", "aprobado", "rechazado"]
-        elif es_omisiones:
-            produccion = st.number_input("Producción", min_value=0)
-            estados_disponibles = ["finalizado", "pendiente"]
-            aprobados = 0
-            rechazados = 0
-        else:
-            produccion = st.number_input("Producción", min_value=0)
-            aprobados = 0
-            rechazados = 0
-            estados_disponibles = ["pendiente", "finalizado", "corregido"]
+        st.markdown("---")
 
-        # NUEVO CAMPO ESTADO
-        estado = st.selectbox(
-            "Estado",
-            estados_disponibles
+        # =========================
+        # CAMPOS SEGÚN PROCESO
+        # =========================
+        if es_control_calidad:
+            st.subheader("📏 Cantidad de Planos por Rango (CC)")
+            
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                rango_0_100 = st.number_input("(0 a 100 mts)", min_value=0, step=1, value=0)
+                rango_1001_5000 = st.number_input("(1001 a 5000 mts)", min_value=0, step=1, value=0)
+            
+            with col2:
+                rango_101_500 = st.number_input("(101 a 500 mts)", min_value=0, step=1, value=0)
+                rango_5001_10000 = st.number_input("(5001 a 10000 mts)", min_value=0, step=1, value=0)
+            
+            with col3:
+                rango_501_1000 = st.number_input("(501 a 1000 mts)", min_value=0, step=1, value=0)
+                rango_mas_10000 = st.number_input("(> 10000 mts)", min_value=0, step=1, value=0)
+            
+            # Inicializar campos de Recaptura en 0
+            ap_km = 0.0
+            mp_0_100 = 0.0
+            mp_101_500 = 0.0
+            mp_501_1000 = 0.0
+            mp_1001_5000 = 0.0
+            mp_5001_10000 = 0.0
+            mp_mas_10000 = 0.0
+
+        elif es_recaptura_red:
+            st.subheader("📏 Cantidad de Metros/KM por Rango (Recaptura de Red)")
+            
+            ap_km = st.number_input("AP (km)", min_value=0.0, step=0.01, format="%.2f")
+            
+            st.markdown("#### MP (Metros de Parque)")
+            
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                mp_0_100 = st.number_input("MP (0 a 100 mts)", min_value=0.0, step=0.01, format="%.2f")
+                mp_1001_5000 = st.number_input("MP (1001 a 5000 mts)", min_value=0.0, step=0.01, format="%.2f")
+            
+            with col2:
+                mp_101_500 = st.number_input("MP (101 a 500 mts)", min_value=0.0, step=0.01, format="%.2f")
+                mp_5001_10000 = st.number_input("MP (5001 a 10000 mts)", min_value=0.0, step=0.01, format="%.2f")
+            
+            with col3:
+                mp_501_1000 = st.number_input("MP (501 a 1000 mts)", min_value=0.0, step=0.01, format="%.2f")
+                mp_mas_10000 = st.number_input("MP (> 10000 mts)", min_value=0.0, step=0.01, format="%.2f")
+            
+            # Inicializar campos de CC en 0
+            rango_0_100 = 0
+            rango_101_500 = 0
+            rango_501_1000 = 0
+            rango_1001_5000 = 0
+            rango_5001_10000 = 0
+            rango_mas_10000 = 0
+
+        else:
+            # Otros procesos: inicializar todo en 0
+            st.info("ℹ️ Este proceso no requiere campos adicionales de medición")
+            
+            rango_0_100 = 0
+            rango_101_500 = 0
+            rango_501_1000 = 0
+            rango_1001_5000 = 0
+            rango_5001_10000 = 0
+            rango_mas_10000 = 0
+            ap_km = 0.0
+            mp_0_100 = 0.0
+            mp_101_500 = 0.0
+            mp_501_1000 = 0.0
+            mp_1001_5000 = 0.0
+            mp_5001_10000 = 0.0
+            mp_mas_10000 = 0.0
+
+        st.markdown("---")
+
+        # =========================
+        # CENTRO DE COSTOS
+        # =========================
+        centro_costos = st.selectbox(
+            "Centro de Costos",
+            options=["NOA", "BAN"]
         )
 
-        observaciones = st.text_area("Observaciones")
+        # =========================
+        # OBSERVACIONES
+        # =========================
+        observaciones = st.text_area("Observaciones", max_chars=240)
+
+        # =========================
+        # ESTADO (por debajo)
+        # =========================
+        estado = "N/A"
 
         submit = st.form_submit_button("Guardar reporte")
 
@@ -216,41 +184,47 @@ def render():
     # =========================
     if submit:
 
-        if not es_omisiones and not complejidad:
-            st.error("❌ No se puede guardar: la zona no tiene complejidad")
-            st.stop()
-
         semana = fecha_reporte.isocalendar()[1]
         año = fecha_reporte.year
 
         try:
             cur.execute("""
-                INSERT INTO reportes (
+                INSERT INTO naturgy.reportes (
                     tipo_reporte,
                     cedula_personal,
                     cedula_quien_reporta,
                     supervisor_nombre,
                     fecha_reporte,
                     semana,
-                    año,
+                    "año",
                     horas,
                     proceso_id,
-                    region,
-                    zona,
-                    complejidad,
-                    produccion,
-                    aprobados,
-                    rechazados,
-                    estado,
+                    "(0 a 100 mts)",
+                    "(101 a 500 mts)",
+                    "(501 a 1000 mts)",
+                    "(1001 a 5000 mts)",
+                    "(5001 a 10000 mts)",
+                    "(> 10000 mts)",
+                    "AP (km)",
+                    "MP (0 a 100 mts)",
+                    "MP (101 a 500 mts)",
+                    "MP (501 a 1000 mts)",
+                    "MP (1001 a 5000 mts)",
+                    "MP (5001 a 10000 mts)",
+                    "MP (> 10000 mts)",
+                    centro_costos,
                     observaciones,
+                    estado,
                     perfil,
                     puesto
                 )
                 VALUES (
                     'produccion',
                     %s, %s, %s, %s, %s, %s,
+                    %s, %s,
                     %s, %s, %s, %s, %s, %s,
-                    %s, %s, %s, %s, %s, %s
+                    %s, %s, %s, %s, %s, %s, %s,
+                    %s, %s, %s, %s, %s
                 )
             """, (
                 cedula_usuario,
@@ -261,14 +235,22 @@ def render():
                 año,
                 horas,
                 proceso_id,
-                region,
-                zona,
-                complejidad,
-                produccion,
-                aprobados,
-                rechazados,
-                estado,
+                rango_0_100,
+                rango_101_500,
+                rango_501_1000,
+                rango_1001_5000,
+                rango_5001_10000,
+                rango_mas_10000,
+                ap_km,
+                mp_0_100,
+                mp_101_500,
+                mp_501_1000,
+                mp_1001_5000,
+                mp_5001_10000,
+                mp_mas_10000,
+                centro_costos,
                 observaciones,
+                estado,
                 perfil,
                 puesto
             ))
@@ -280,5 +262,6 @@ def render():
             conn.rollback()
             st.error("❌ Error al guardar el reporte")
             st.exception(e)
-
-
+        finally:
+            cur.close()
+            conn.close()
