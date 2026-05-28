@@ -5,7 +5,7 @@ import streamlit as st
 # =====================================================
 PERMISOS_POR_PERFIL = {
     # 1 = Administrador / Coordinador
-    1: [
+    '1': [
         "Dashboards",
         "RRHH",
         "Cargar Asignaciones",
