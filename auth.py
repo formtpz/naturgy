@@ -6,8 +6,8 @@ def login_usuario(cedula, password):
     cur = conn.cursor()
 
     cur.execute("""
-        SELECT cedula, nombre_completo, perfil, puesto
-        FROM personal
+        SELECT usuario, nombre, perfil, puesto
+        FROM public.usuarios
         WHERE cedula = %s
           AND contraseña = %s
           AND estado = 'activo'
