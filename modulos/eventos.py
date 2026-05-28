@@ -52,7 +52,7 @@ def render():
         tipos_evento = [
             (id_, nombre)
             for id_, nombre in tipos_evento
-            if id_ in (0,2,3, 16, 17)
+            if id_ in (0, 2, 3, 16, 17)
         ]
 
     if not tipos_evento:
@@ -138,14 +138,6 @@ def render():
                 options=list(personal_dict.keys())
             )
 
-        # =========================
-        # CENTRO DE COSTOS
-        # =========================
-        centro_costos = st.selectbox(
-            "Centro de Costos",
-            options=["NOA", "BAN"]
-        )
-
         observaciones = st.text_area(
             "Observaciones (opcional)",
             value="",
@@ -206,7 +198,7 @@ def render():
                         'evento',
                         %s, %s, %s, %s, %s, %s,
                         %s, 0, %s,
-                        %s, %s, 'N/A', %s, %s
+                        'N/A', %s, 'N/A', %s, %s
                     )
                 """, (
                     cedula_personal,
@@ -217,7 +209,6 @@ def render():
                     año,
                     horas,
                     tipo_evento_id,
-                    centro_costos,
                     observaciones,
                     perfil_personal,
                     puesto_personal
