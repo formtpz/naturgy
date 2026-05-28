@@ -3,6 +3,7 @@ import pandas as pd
 from db import get_connection
 from permisos import validar_acceso
 
+
 def render():
     # =========================
     # Control de acceso
@@ -11,8 +12,7 @@ def render():
 
     usuario = st.session_state.get("usuario")
 
-    perfil = usuario["perfil"]        # 1 = Admin / Coordinador
-                                      # 3 = Operativo / Supervisor
+    perfil = usuario["perfil"]
     puesto = usuario["puesto"].lower()
     cedula_usuario = usuario["cedula"]
     nombre_usuario = usuario["nombre"]
@@ -24,6 +24,9 @@ def render():
     st.title("📈 Historial de Reportes")
 
     conn = get_connection()
+    
+    # ✅ Limpiar transacciones pendientes
+    conn.rollback()
 
     # =========================
     # Filtro de fechas
@@ -40,12 +43,12 @@ def render():
     where_extra = ""
     params_base = [fecha_inicio, fecha_fin]
 
-    # -------- OPERADOR --------
-    if perfil == 3 or perfil == 4 and puesto == "operario catastral":
+    # -------- OPERARIO CATASTRAL --------
+    if perfil in (3, 4) and puesto == "operario catastral":
         where_extra = " AND r.cedula_personal = %s"
         params_base.append(cedula_usuario)
 
-    # -------- SUPERVISOR --------
+    # -------- SUPERVISOR (perfil 3 sin ser operario) --------
     elif perfil == 3:
         opcion = st.radio(
             "Ver reportes de:",
@@ -83,24 +86,43 @@ def render():
     SELECT 
         r.id,
         r.fecha_reporte,
-        p.nombre_completo AS persona,
+        u.nombre AS persona,
         r.supervisor_nombre AS supervisor,
-        r.zona,
+        pr.nombre AS proceso,
         r.horas,
-        r.produccion,
-        r.aprobados,
-        r.rechazados,
-        r.observaciones
-    FROM reportes r
-    JOIN personal p ON p.cedula = r.cedula_personal
+        r."(0 a 100 mts)",
+        r."(101 a 500 mts)",
+        r."(501 a 1000 mts)",
+        r."(1001 a 5000 mts)",
+        r."(5001 a 10000 mts)",
+        r."(> 10000 mts)",
+        r."AP (km)",
+        r."MP (0 a 100 mts)",
+        r."MP (101 a 500 mts)",
+        r."MP (501 a 1000 mts)",
+        r."MP (1001 a 5000 mts)",
+        r."MP (5001 a 10000 mts)",
+        r."MP (> 10000 mts)",
+        r.centro_costos,
+        r.observaciones,
+        r.estado
+    FROM naturgy.reportes r
+    JOIN naturgy.usuarios u ON u.usuario = r.cedula_personal
+    LEFT JOIN naturgy.procesos pr ON pr.id = r.proceso_id
     WHERE r.tipo_reporte = 'produccion'
       AND r.fecha_reporte BETWEEN %s AND %s
       {where_extra}
-    ORDER BY r.fecha_reporte, persona
+    ORDER BY r.fecha_reporte DESC, persona
     """
 
     df_prod = pd.read_sql(query_prod, conn, params=params_base)
-    st.dataframe(df_prod, use_container_width=True, hide_index=True)
+    
+    if df_prod.empty:
+        st.info("No hay reportes de producción en el período seleccionado")
+    else:
+        st.dataframe(df_prod, use_container_width=True, hide_index=True)
+
+    st.markdown("---")
 
     # =========================
     # REPORTES DE EVENTOS
@@ -111,22 +133,30 @@ def render():
     SELECT 
         r.id,
         r.fecha_reporte,
-        p.nombre_completo AS persona,
+        u.nombre AS persona,
         r.supervisor_nombre AS supervisor,
         r.horas,
         te.nombre AS tipo_evento,
-        r.observaciones
-    FROM reportes r
-    JOIN personal p ON p.cedula = r.cedula_personal
-    LEFT JOIN tipos_evento te ON te.id = r.tipo_evento_id
+        r.centro_costos,
+        r.observaciones,
+        r.estado
+    FROM naturgy.reportes r
+    JOIN naturgy.usuarios u ON u.usuario = r.cedula_personal
+    LEFT JOIN naturgy.tipos_evento te ON te.id = r.tipo_evento_id
     WHERE r.tipo_reporte = 'evento'
       AND r.fecha_reporte BETWEEN %s AND %s
       {where_extra}
-    ORDER BY r.fecha_reporte, persona
+    ORDER BY r.fecha_reporte DESC, persona
     """
 
     df_eventos = pd.read_sql(query_eventos, conn, params=params_base)
-    st.dataframe(df_eventos, use_container_width=True, hide_index=True)
+    
+    if df_eventos.empty:
+        st.info("No hay reportes de eventos en el período seleccionado")
+    else:
+        st.dataframe(df_eventos, use_container_width=True, hide_index=True)
+
+    st.markdown("---")
 
     # =========================
     # RESUMEN DIARIO DE HORAS (POR PERSONA)
@@ -136,20 +166,33 @@ def render():
     query_horas = f"""
     SELECT 
         r.fecha_reporte,
-        p.nombre_completo AS persona,
+        u.nombre AS persona,
         SUM(r.horas) AS total_horas
-    FROM reportes r
-    JOIN personal p ON p.cedula = r.cedula_personal
+    FROM naturgy.reportes r
+    JOIN naturgy.usuarios u ON u.usuario = r.cedula_personal
     WHERE r.fecha_reporte BETWEEN %s AND %s
       {where_extra}
-    GROUP BY r.fecha_reporte, p.nombre_completo
-    ORDER BY r.fecha_reporte, persona
+    GROUP BY r.fecha_reporte, u.nombre
+    ORDER BY r.fecha_reporte DESC, persona
     """
 
     df_horas = pd.read_sql(query_horas, conn, params=params_base)
 
-    df_horas["estado"] = df_horas["total_horas"].apply(
-        lambda x: "✅ OK" if 8.4 <= float(x) <= 8.6 else "⚠️ Revisar"
-    )
+    if df_horas.empty:
+        st.info("No hay datos para el resumen de horas")
+    else:
+        df_horas["estado"] = df_horas["total_horas"].apply(
+            lambda x: "✅ OK" if 8.4 <= float(x) <= 8.6 else "⚠️ Revisar"
+        )
 
-    st.dataframe(df_horas, use_container_width=True)
+        # Métricas rápidas
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Total personas", df_horas["persona"].nunique())
+        with col2:
+            st.metric("Total días", df_horas["fecha_reporte"].nunique())
+        with col3:
+            dias_revisar = df_horas[df_horas["estado"] == "⚠️ Revisar"]["fecha_reporte"].nunique()
+            st.metric("Días a revisar", dias_revisar)
+
+        st.dataframe(df_horas, use_container_width=True, hide_index=True)
