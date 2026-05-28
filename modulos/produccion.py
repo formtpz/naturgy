@@ -31,7 +31,7 @@ def render():
     # =========================
     cur.execute("""
         SELECT id, nombre
-        FROM naturgy.procesos
+        FROM procesos
         WHERE id <> 0
         ORDER BY id
     """)
@@ -43,8 +43,8 @@ def render():
     # =========================
     cur.execute("""
         SELECT supervisor
-        FROM naturgy.usuarios
-        WHERE usuario = %s
+        FROM personal
+        WHERE cedula = %s
     """, (cedula_usuario,))
     row_sup = cur.fetchone()
     supervisor_nombre = row_sup[0] if row_sup else None
@@ -257,11 +257,9 @@ def render():
 
             conn.commit()
             st.success("✅ Reporte guardado correctamente")
+            st.balloons()
 
         except Exception as e:
             conn.rollback()
             st.error("❌ Error al guardar el reporte")
             st.exception(e)
-        finally:
-            cur.close()
-            conn.close()
