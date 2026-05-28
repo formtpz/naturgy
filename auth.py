@@ -8,7 +8,7 @@ def login_usuario(cedula, password):
     cur.execute("""
         SELECT usuario, nombre, perfil, puesto
         FROM public.usuarios
-        WHERE cedula = %s
+        WHERE usuario = %s
           AND contraseña = %s
           AND estado = 'activo'
     """, (cedula.strip(), password.strip()))
