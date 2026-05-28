@@ -10,7 +10,7 @@ def login_usuario(cedula, password):
         FROM naturgy.usuarios
         WHERE usuario = %s
           AND contraseña = %s
-          AND estado = 'activo'
+          AND estado = 'Activo'
     """, (cedula.strip(), password.strip()))
 
     user = cur.fetchone()
