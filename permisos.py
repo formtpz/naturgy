@@ -25,7 +25,7 @@ PERMISOS_POR_PERFIL = {
 
     # 3 = Operador / Supervisor
     '3': [
-        "Asignación de Producción",
+       
         "Reportes Producción",
         "Eventos",
         "Historial",
