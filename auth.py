@@ -8,7 +8,7 @@ def login_usuario(cedula, password):
     cur.execute("""
         SELECT usuario as cedula, nombre, perfil, puesto
         FROM naturgy.usuarios
-        WHERE cedula = %s
+        WHERE usuario = %s
           AND contraseña = %s
           AND estado = 'activo'
     """, (cedula.strip(), password.strip()))
