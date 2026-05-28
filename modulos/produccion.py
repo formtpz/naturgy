@@ -18,7 +18,7 @@ def render():
     cedula_usuario = usuario["cedula"]
 
     # ✅ Comparar como strings
-    if perfil not in ('1', '3', '4', '5'):
+    if perfil not in (1, 3, 4, 5):
         st.error("No tiene permiso para acceder a Producción")
         st.stop()
 
