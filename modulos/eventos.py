@@ -3,6 +3,7 @@ from datetime import date
 from db import get_connection
 from permisos import validar_acceso
 
+
 def render():
     # =========================
     # Control de acceso
@@ -24,6 +25,10 @@ def render():
     st.title("📌 Reporte de Eventos")
 
     conn = get_connection()
+    
+    # ✅ Limpiar transacciones pendientes
+    conn.rollback()
+    
     cur = conn.cursor()
 
     # =========================
@@ -31,7 +36,7 @@ def render():
     # =========================
     cur.execute("""
         SELECT id, nombre
-        FROM tipos_evento
+        FROM naturgy.tipos_evento
         ORDER BY nombre
     """)
     tipos_evento = cur.fetchall()
@@ -41,9 +46,9 @@ def render():
         st.stop()
 
     # =========================
-    # Restricción Operador Catastral
+    # Restricción Operario Catastral
     # =========================
-    if perfil == 3 or perfil == 4 and puesto == "operario catastral":
+    if perfil in (3, 4) and puesto == "operario catastral":
         tipos_evento = [
             (id_, nombre)
             for id_, nombre in tipos_evento
@@ -59,29 +64,29 @@ def render():
     # =========================
     # Cargar personal según jerarquía
     # =========================
-    if perfil == 3 or perfil == 4 and puesto == "operario catastral":
+    if perfil in (3, 4) and puesto == "operario catastral":
         # El operario SOLO se reporta a sí mismo
         cur.execute("""
-            SELECT cedula, nombre_completo, perfil, puesto, supervisor
-            FROM personal
-            WHERE cedula = %s
-              AND estado = 'activo'
+            SELECT usuario, nombre, perfil, puesto, supervisor
+            FROM naturgy.usuarios
+            WHERE usuario = %s
+              AND estado = 'Activo'
         """, (cedula_reporta,))
     else:
-        if puesto == "coordinador" or puesto == "supervisor" or puesto == "Tecnico SIG":
+        if puesto == "coordinador" or puesto == "supervisor" or puesto == "tecnico sig":
             cur.execute("""
-                SELECT cedula, nombre_completo, perfil, puesto, supervisor
-                FROM personal
-                WHERE estado = 'activo'
-                ORDER BY nombre_completo
+                SELECT usuario, nombre, perfil, puesto, supervisor
+                FROM naturgy.usuarios
+                WHERE estado = 'Activo'
+                ORDER BY nombre
             """)
         else:
             cur.execute("""
-                SELECT cedula, nombre_completo, perfil, puesto, supervisor
-                FROM personal
-                WHERE estado = 'activo'
-                  AND (supervisor = %s OR cedula = %s)
-                ORDER BY nombre_completo
+                SELECT usuario, nombre, perfil, puesto, supervisor
+                FROM naturgy.usuarios
+                WHERE estado = 'Activo'
+                  AND (supervisor = %s OR usuario = %s)
+                ORDER BY nombre
             """, (nombre_usuario, cedula_reporta))
 
     personal = cur.fetchall()
@@ -124,7 +129,7 @@ def render():
         # =========================
         # Selección de personal
         # =========================
-        if perfil == 3 or perfil == 4 and puesto == "operario catastral":
+        if perfil in (3, 4) and puesto == "operario catastral":
             personal_seleccionado = list(personal_dict.keys())
             st.info("Como Operario Catastral, solo puede reportarse a sí mismo.")
         else:
@@ -133,9 +138,18 @@ def render():
                 options=list(personal_dict.keys())
             )
 
+        # =========================
+        # CENTRO DE COSTOS
+        # =========================
+        centro_costos = st.selectbox(
+            "Centro de Costos",
+            options=["NOA", "BAN"]
+        )
+
         observaciones = st.text_area(
             "Observaciones (opcional)",
-            value=""
+            value="",
+            max_chars=240
         )
 
         submit = st.form_submit_button("Guardar evento")
@@ -163,38 +177,36 @@ def render():
                 # Obtener supervisor REAL del reportado
                 cur.execute("""
                     SELECT supervisor
-                    FROM personal
-                    WHERE cedula = %s
+                    FROM naturgy.usuarios
+                    WHERE usuario = %s
                 """, (cedula_personal,))
 
                 row_sup = cur.fetchone()
                 supervisor_nombre = row_sup[0] if row_sup else None
 
                 cur.execute("""
-                    INSERT INTO reportes (
+                    INSERT INTO naturgy.reportes (
                         tipo_reporte,
                         cedula_personal,
                         cedula_quien_reporta,
                         supervisor_nombre,
                         fecha_reporte,
                         semana,
-                        año,
+                        "año",
                         horas,
                         proceso_id,
-                        zona,
-                        produccion,
-                        aprobados,
-                        rechazados,
                         tipo_evento_id,
+                        centro_costos,
                         observaciones,
+                        estado,
                         perfil,
                         puesto
                     )
                     VALUES (
                         'evento',
                         %s, %s, %s, %s, %s, %s,
-                        %s, 0, 0, 0, 0, 0,
-                        %s, %s, %s, %s
+                        %s, 0, %s,
+                        %s, %s, 'N/A', %s, %s
                     )
                 """, (
                     cedula_personal,
@@ -205,6 +217,7 @@ def render():
                     año,
                     horas,
                     tipo_evento_id,
+                    centro_costos,
                     observaciones,
                     perfil_personal,
                     puesto_personal
@@ -212,6 +225,7 @@ def render():
 
             conn.commit()
             st.success("✅ Evento(s) registrado(s) correctamente")
+            st.balloons()
 
         except Exception as e:
             conn.rollback()
