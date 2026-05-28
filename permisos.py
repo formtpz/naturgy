@@ -5,7 +5,7 @@ import streamlit as st
 # =====================================================
 PERMISOS_POR_PERFIL = {
     # 1 = Administrador / Coordinador
-    '1': [
+    1: [
         "Dashboards",
         "RRHH",
         "Cargar Asignaciones",
@@ -18,13 +18,13 @@ PERMISOS_POR_PERFIL = {
     ],
 
     # 2 = RRHH
-    '2': [
+    2: [
         "RRHH",
         "Cerrar Sesion"
     ],
 
     # 3 = Operador / Supervisor
-    '3': [
+    3: [
        
         "Reportes Producción",
         "Eventos",
@@ -34,7 +34,7 @@ PERMISOS_POR_PERFIL = {
     ],
 
     # 4 = Control de Calidad (MISMO acceso que Operador)
-    '4': [
+    4: [
         "Asignación de Producción",
         "Reportes Producción",
         "Eventos",
@@ -43,7 +43,7 @@ PERMISOS_POR_PERFIL = {
         "Cerrar Sesion"
     ],
 
-    '5': [
+    5: [
         "Asignación de Producción",
         "Dashboards",
         "Reportes Producción",
